@@ -218,7 +218,10 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 	/*
 	 * Your code goes here
 	 */
-assert(size >= sizeof(MessageHdr));
+	//assert(size >= sizeof(MessageHdr));
+	Member *node = (Member *) env;
+	MessageHdr *msg = (MessageHdr *)data;
+	char *packageData = (char*)(msg + 1);
 }
 
 /**
