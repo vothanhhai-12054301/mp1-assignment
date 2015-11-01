@@ -269,6 +269,59 @@ void MP1Node::updateMember(int id, short port, long heartbeat)
         }
     }
 
+
+void MP1Node::sendMemberList(const char * label, enum MsgTypes msgType, Address * to)
+{
+    long members = memberNode->memberList.size();
+    size_t msgsize = sizeof(MessageHdr) + sizeof(memberNode->addr.addr) + sizeof(long) + members * (sizeof(int) + sizeof(short) + sizeof(log));
+
+
+    MessageHdr * msg = (MessageHdr *) malloc(msgsize * sizeof(char));
+    char * data = (char*)(msg + 1);
+
+    msg->msgType = msgType;
+    memcpy(data, &memberNode->addr.addr, sizeof(memberNode->addr.addr));
+    data += sizeof(memberNode->addr.addr);
+    char * pos_members = data;
+    data += sizeof(long);
+
+    for (vector<MemberListEntry>::iterator it = memberNode->memberList.begin() ; it != memberNode->memberList.end();) {
+
+        if (it != memberNode->memberList.begin()) {
+
+            if (par->getcurrtime() - it->timestamp > TREMOVE) {
+                // Member CLEANUP!
+#ifdef DEBUGLOG
+                Address joinaddr;
+                memcpy(&joinaddr.addr[0], &it->id, sizeof(int));
+                memcpy(&joinaddr.addr[4], &it->port, sizeof(short));
+                log->logNodeRemove(&memberNode->addr, &joinaddr);
+#endif
+                members--;
+                it = memberNode->memberList.erase(it);
+                continue;
+            }
+
+            if (par->getcurrtime() - it->timestamp > TFAIL) {
+
+                members--;
+                ++it;
+                continue;
+            }
+        }
+
+        //logMemberListEntry(*it);
+
+        data += memcpyMemberListEntry(data, *it);
+        ++it;
+    }
+
+    memcpy(pos_members, &members, sizeof(long));
+    msgsize = sizeof(MessageHdr) + sizeof(memberNode->addr.addr) + sizeof(long) + members * (sizeof(int) + sizeof(short) + sizeof(log));
+
+    emulNet->ENsend(&memberNode->addr, to, (char *)msg, msgsize);
+    free(msg);
+}
 /**
  * FUNCTION NAME: nodeLoopOps
  *
