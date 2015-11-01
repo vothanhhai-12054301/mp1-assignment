@@ -335,7 +335,24 @@ void MP1Node::nodeLoopOps() {
 	 * Your code goes here
 	 */
 
-    return;
+     if (par->getcurrtime() > 3 && memberNode->memberList.size() > 1) {
+
+        memberNode->memberList.begin()->heartbeat++;
+        memberNode->memberList.begin()->timestamp = par->getcurrtime();
+
+        int pos = rand() % (memberNode->memberList.size() - 1) + 1;
+        MemberListEntry& member = memberNode->memberList[pos];
+
+        if (par->getcurrtime() - member.timestamp > TFAIL) {
+            return;
+        }
+
+        Address memberAddr;
+        memcpy(&memberAddr.addr[0], &member.id, sizeof(int));
+        memcpy(&memberAddr.addr[4], &member.port, sizeof(short));
+
+        sendMemberList("HEARTBEATREQ", HEARTBEATREQ, &memberAddr);
+    }
 }
 
 /**
@@ -380,4 +397,14 @@ void MP1Node::printAddress(Address *addr)
 {
     printf("%d.%d.%d.%d:%d \n",  addr->addr[0],addr->addr[1],addr->addr[2],
                                                        addr->addr[3], *(short*)&addr->addr[4]) ;    
+}
+
+void MP1Node::initMemberListTable(Member *memberNode) {
+	memberNode->memberList.clear();
+
+    int id = *(int*)(&memberNode->addr.addr);
+    int port = *(short*)(&memberNode->addr.addr[4]);
+    MemberListEntry memberEntry(id, port, 0, par->getcurrtime());
+    memberNode->memberList.push_back(memberEntry);
+    memberNode->myPos = memberNode->memberList.begin();
 }
