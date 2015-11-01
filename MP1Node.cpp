@@ -178,15 +178,15 @@ void MP1Node::nodeLoop() {
     	return;
     }
 
-    // Check my messages
+    //kiem tra check 
     checkMessages();
 
-    // Wait until you're in the group...
+    // loi group s
     if( !memberNode->inGroup ) {
     	return;
     }
 
-    // ...then jump in and share your responsibilites!
+    //responsibilites!
     nodeLoopOps();
 
     return;
@@ -220,11 +220,54 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 	/*
 	 * Your code goes here
 	 */
-	//assert(size >= sizeof(MessageHdr));
-	Member *node = (Member *) env;
-	MessageHdr *msg = (MessageHdr *)data;
-	char *packageData = (char*)(msg + 1);
+	if (size <(int) sizeof(MessageHdr){
+	#ifdef DEBUGLOG
+		log->LOG(&memberNode->addr,"thong diep nhan nho hon MessageHdr");
+	#endif
+		return false;	
+	}
+
+	switch (msg ->msgType){
+		case JOINREQ :
+			return recvJoinReq(env,data + sizeof(MessageHdr),size -sizeof(MessageHdr));
+	}
+	return false;
 }
+
+bool MP1Node::recvJoinReq(void *env,char *data,int size){
+	if(size < (int)(sizeof(memberNode ->addr.addr)+ sizeof(long))){
+
+#ifdef DEBUGLOG
+	log->LOG(&memberNode->addr,"loi JOINEQ nhan sai kich thuoc .");
+#endif 
+	return false;
+	}
+
+	Address joinaddr;
+	long heartbeat;//tao ra heartbeat
+	memcpy(joinaddr.addr,data,sizeof(memberNode->addr.addr));
+	memcpy(&heartbeat, data + sizeof(memberNode->addr.addr), sizeof(long));
+
+	int id = *(int*)(&joinaddr.addr);
+	int port = *(short*)(&joinaddr.addr[4]);
+	//viet ham them 
+	updateMember(id, port, heartbeat); 
+	sendMemberList("JOINREP", JOINREP, &joinaddr);
+    return true;
+
+}
+void MP1Node::updateMember(int id, short port, long heartbeat)
+{
+    vector<MemberListEntry>::iterator it = memberNode->memberList.begin();
+    for (; it != memberNode->memberList.end(); ++it) {
+        if (it->id == id && it->port ==port) {
+            if (heartbeat > it->heartbeat) {
+                it->setheartbeat(heartbeat);
+                it->settimestamp(par->getcurrtime());
+            }
+            return;
+        }
+    }
 
 /**
  * FUNCTION NAME: nodeLoopOps
