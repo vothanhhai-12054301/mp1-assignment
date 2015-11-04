@@ -96,9 +96,6 @@ int MP1Node::initThisNode(Address *joinaddr) {
 	/*
 	 * This function is partially implemented and may require changes
 	 */
-	int id = *(int*)(&memberNode->addr.addr);
-	int port = *(short*)(&memberNode->addr.addr[4]);
-
 	memberNode->bFailed = false;
 	memberNode->inited = true;
 	memberNode->inGroup = false;
@@ -216,20 +213,30 @@ void MP1Node::checkMessages() {
  *
  * DESCRIPTION: Message handler for different message types
  */
-bool MP1Node::recvCallBack(void *env, char *data, int size ) {
+bool MP1Node::recvCallBack(void *env, char *data, int size ) 
+{
 	/*
 	 * Your code goes here
 	 */
-	if (size <(int) sizeof(MessageHdr){
+	if (size < (int)sizeof(MessageHdr)){
 	#ifdef DEBUGLOG
 		log->LOG(&memberNode->addr,"thong diep nhan nho hon MessageHdr");
 	#endif
 		return false;	
 	}
+	MessageHdr * msg = (MessageHdr *)data;
 
-	switch (msg ->msgType){
+	switch (msg->msgType){
 		case JOINREQ :
 			return recvJoinReq(env,data + sizeof(MessageHdr),size -sizeof(MessageHdr));
+		case JOINREP:
+			return recvJoinRep(env, data + sizeof(MessageHdr), size - sizeof(MessageHdr));
+        case HEARTBEATREQ:
+            return recvHeartbeatReq(env, data + sizeof(MessageHdr), size - sizeof(MessageHdr));
+        case HEARTBEATREP:
+            return recvHeartbeatRep(env, data + sizeof(MessageHdr), size - sizeof(MessageHdr));
+        case DUMMYLASTMSGTYPE:
+            return false;
 	}
 	return false;
 }
@@ -288,15 +295,15 @@ void MP1Node::updateMember(MemberListEntry& member)
 int MP1Node::memcpyMemberListEntry(char * data,MemberListEntry& member)
 {
 	char * p =data ;
-	memcpy(p,&member.id,sizeof(int));
-	p + = sizeof(int);
+	memcpy(p, &member.id,sizeof(int));
+	p += sizeof(int);
 	memcpy(p , &member.port, sizeof(short));
     p += sizeof(short);
     memcpy(p , &member.heartbeat, sizeof(long));
     p += sizeof(long);
     return p - data;
 }
-}
+
 void MP1Node::sendMemberList(const char * label, enum MsgTypes msgType, Address * to)
 {
     long members = memberNode->memberList.size();
@@ -348,6 +355,67 @@ void MP1Node::sendMemberList(const char * label, enum MsgTypes msgType, Address 
 
     emulNet->ENsend(&memberNode->addr, to, (char *)msg, msgsize);
     free(msg);
+}
+// viet them ham rec member
+bool MP1Node::recvMemberList(const char * label, void *env, char *data, int size)
+{
+    if (size < (int)(sizeof(long))) {
+#ifdef DEBUGLOG
+        log->LOG(&memberNode->addr, "Message %s nhan bi fail size[%s]", label, size);
+#endif
+        return false;
+    }
+
+    long members;
+    memcpy(&members, data, sizeof(long));
+    data += sizeof(long);
+    size -= sizeof(long);
+
+
+    if (size < (int)(members * (sizeof(int) + sizeof(short) + sizeof(log)))) {
+#ifdef DEBUGLOG
+        log->LOG(&memberNode->addr, "Message %s received sai kich thuoc.", label);
+#endif
+        return false;
+    }
+
+    MemberListEntry member;
+    for (long i = 0; i < members; i++) {
+        //log->LOG(&memberNode->addr, "Message %s received: i[%li]", label, i);
+        memcpy(&member.id, data, sizeof(int));
+        data += sizeof(int);
+        memcpy(&member.port, data, sizeof(short));
+        data += sizeof(short);
+        memcpy(&member.heartbeat, data, sizeof(long));
+        data += sizeof(long);
+        member.timestamp = par->getcurrtime();
+       
+        updateMember(member);
+    }
+    return true;
+}
+
+bool MP1Node::recvJoinRep(void *env, char *data, int size) {
+    if (size < (int)(sizeof(memberNode->addr.addr))) {
+#ifdef DEBUGLOG
+        log->LOG(&memberNode->addr, "Message JOINREP received with size . size[%i]", size);
+#endif
+        return false;
+    }
+
+    Address senderAddr;
+    memcpy(senderAddr.addr, data, sizeof(memberNode->addr.addr));
+    data += sizeof(memberNode->addr.addr);
+    size -= sizeof(memberNode->addr.addr);
+
+
+
+    if (!recvMemberList("JOINREP", env, data, size)) {
+        return false;
+    }
+
+    memberNode->inGroup = true;
+    return true;
 }
 /**
  * FUNCTION NAME: nodeLoopOps
@@ -413,6 +481,11 @@ Address MP1Node::getJoinAddress() {
  */
 void MP1Node::initMemberListTable(Member *memberNode) {
 	memberNode->memberList.clear();
+	int id = *(int*)(&memberNode->addr.addr);
+    int port = *(short*)(&memberNode->addr.addr[4]);
+    MemberListEntry memberEntry(id, port, 0, par->getcurrtime());
+    memberNode->memberList.push_back(memberEntry);
+    memberNode->myPos = memberNode->memberList.begin();
 }
 
 /**
