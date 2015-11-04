@@ -82,6 +82,15 @@ public:
 	//update member gom id port va heartbeat
 	void updateMember(int id,short port,long heartbeat);
 	void updateMember(MemberListEntry& member);
+
+	bool recvJoinReq(void *env, char *data, int size);
+	bool recvJoinRep(void *env, char *data, int size);
+	bool recvHeartbeatReq(void *env, char *data, int size);
+	bool recvHeartbeatRep(void *env, char *data, int size);
+	bool recvMemberList(const char * label, void *env, char *data, int size);
+	void sendMemberList(const char * label, enum MsgTypes msgType, Address *to);
+	int memcpyMemberListEntry(char * data, MemberListEntry& member);
+	void logMemberListEntry(MemberListEntry& member);
 };
 
 #endif /* _MP1NODE_H_ */

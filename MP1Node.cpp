@@ -201,7 +201,7 @@ void MP1Node::checkMessages() {
     void *ptr;
     int size;
 
-    // Pop waiting messages from memberNode's mp1q
+
     while ( !memberNode->mp1q.empty() ) {
     	ptr = memberNode->mp1q.front().elt;
     	size = memberNode->mp1q.front().size;
@@ -268,8 +268,35 @@ void MP1Node::updateMember(int id, short port, long heartbeat)
             return;
         }
     }
+    //them member List Entry
+    MemberListEntry memberEntry(id,port,heartbeat,par->getcurrtime());
+    memberNode->memberList.push_back(memberEntry);
+#ifdef DEBUGLOG
+    Address joinaddr;
+    memcpy(&joinaddr.addr[0],&id,sizeof(int));
+    memcpy(&joinaddr.addr[4],&port,sizeof(short));
+    log->logNodeAdd(&memberNode->addr,&joinaddr);
+#endif
 
+}
 
+void MP1Node::updateMember(MemberListEntry& member)
+{
+    updateMember(member.getid(), member.getport(), member.getheartbeat());
+}
+
+int MP1Node::memcpyMemberListEntry(char * data,MemberListEntry& member)
+{
+	char * p =data ;
+	memcpy(p,&member.id,sizeof(int));
+	p + = sizeof(int);
+	memcpy(p , &member.port, sizeof(short));
+    p += sizeof(short);
+    memcpy(p , &member.heartbeat, sizeof(long));
+    p += sizeof(long);
+    return p - data;
+}
+}
 void MP1Node::sendMemberList(const char * label, enum MsgTypes msgType, Address * to)
 {
     long members = memberNode->memberList.size();
