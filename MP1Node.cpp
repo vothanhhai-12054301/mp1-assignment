@@ -417,6 +417,69 @@ bool MP1Node::recvJoinRep(void *env, char *data, int size) {
     memberNode->inGroup = true;
     return true;
 }
+// viet ham receive heartbeat request
+bool MP1Node::recvHeartbeatReq(void *env, char *data, int size) {
+    if (size < (int)(sizeof(memberNode->addr.addr))) {
+#ifdef DEBUGLOG
+        log->LOG(&memberNode->addr, "Message HEARTBEATREQ received with size wrong.");
+#endif
+        return false;
+    }
+
+    Address senderAddr;
+    memcpy(senderAddr.addr, data, sizeof(memberNode->addr.addr));
+    data += sizeof(memberNode->addr.addr);
+    size -= sizeof(memberNode->addr.addr);
+
+
+
+    if (!recvMemberList("HEARTBEATREQ", env, data, size)) {
+        return false;
+    }
+
+    size_t msgsize = sizeof(MessageHdr) + sizeof(memberNode->addr.addr);
+    MessageHdr * msg = (MessageHdr *) malloc(msgsize * sizeof(char));
+    msg->msgType = HEARTBEATREP;
+    memcpy((char *)(msg + 1), &memberNode->addr.addr, sizeof(memberNode->addr.addr));
+
+
+
+    emulNet->ENsend(&memberNode->addr, &senderAddr, (char *)msg, msgsize);
+    free(msg);
+    return true;
+}
+
+//tra lai yeu cau heartbeat
+bool MP1Node::recvHeartbeatRep(void *env, char *data, int size) {
+    if (size < (int)(sizeof(memberNode->addr.addr))) {
+#ifdef DEBUGLOG
+        log->LOG(&memberNode->addr, "Message HEARTBEATREP received with size wrong. Ignored.");
+#endif
+        return false;
+    }
+
+    Address senderAddr;
+    memcpy(senderAddr.addr, data, sizeof(memberNode->addr.addr));
+
+
+    int id = *(int*)(&senderAddr.addr);
+    int port = *(short*)(&senderAddr.addr[4]);
+    vector<MemberListEntry>::iterator it = memberNode->memberList.begin();
+    for (++it; it != memberNode->memberList.end(); ++it) {
+        //logMemberListEntry(*it);
+        if (it->id == id && it->port == port) {
+            it->heartbeat++;
+            it->timestamp = par->getcurrtime();
+
+            return true;
+        }
+    }
+
+#ifdef DEBUGLOG
+        log->LOG(&memberNode->addr, "Message HEARTBEATREP not found in member list.");
+#endif
+    return false;
+}
 /**
  * FUNCTION NAME: nodeLoopOps
  *
@@ -499,12 +562,4 @@ void MP1Node::printAddress(Address *addr)
                                                        addr->addr[3], *(short*)&addr->addr[4]) ;    
 }
 
-void MP1Node::initMemberListTable(Member *memberNode) {
-	memberNode->memberList.clear();
 
-    int id = *(int*)(&memberNode->addr.addr);
-    int port = *(short*)(&memberNode->addr.addr[4]);
-    MemberListEntry memberEntry(id, port, 0, par->getcurrtime());
-    memberNode->memberList.push_back(memberEntry);
-    memberNode->myPos = memberNode->memberList.begin();
-}
