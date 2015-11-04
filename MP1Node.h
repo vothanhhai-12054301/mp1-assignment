@@ -31,6 +31,8 @@
 enum MsgTypes{
     JOINREQ,
     JOINREP,
+    HEARTBEATREQ,
+    HEARTBEATREP,
     DUMMYLASTMSGTYPE
 };
 
@@ -76,6 +78,10 @@ public:
 	void initMemberListTable(Member *memberNode);
 	void printAddress(Address *addr);
 	virtual ~MP1Node();
+
+	//update member gom id port va heartbeat
+	void updateMember(int id,short port,long heartbeat);
+	void updateMember(MemberListEntry& member);
 };
 
 #endif /* _MP1NODE_H_ */
